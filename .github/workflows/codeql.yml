@@ -1,0 +1,52 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  schedule:
+    - cron: '47 4 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze Go
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: '1.25'
+
+      # Go only, deliberately, and not c-cpp.
+      #
+      # This repo carries 296k lines of vendored C — the SQLCipher and OpenSSL
+      # amalgamations — against 11k lines of Go. Analysing that C would report
+      # on upstream code this fork does not maintain and cannot fix, in enough
+      # volume to bury anything found in the Go, which is the part that is
+      # actually ours.
+      #
+      # The build needs no system packages: the C is in the repo, so cgo
+      # compiles it in place and plain autobuild is enough.
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@977e6ceaea7361825998245d787fa3b4d6b9e5df # codeql-bundle-v2.27.0
+        with:
+          languages: go
+          build-mode: autobuild
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@977e6ceaea7361825998245d787fa3b4d6b9e5df # codeql-bundle-v2.27.0
+        with:
+          category: /language:go

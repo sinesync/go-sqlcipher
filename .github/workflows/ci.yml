@@ -1,23 +1,48 @@
 name: CI
 
-on: [push, pull_request]
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build:
-    strategy:
-      matrix:
-        go-version: [1.13.x, 1.14.x, 1.15.x]
-        platform: [ubuntu-latest]
-    runs-on: ${{ matrix.platform }}
+  test:
+    name: Test
+    runs-on: ubuntu-latest
     steps:
-    - name: Install Go
-      uses: actions/setup-go@v2
-      with:
-        go-version: ${{ matrix.go-version }}
-    - name: Checkout code
-      uses: actions/checkout@v2
-    - name: Test
-      run: |
-        go get github.com/frankbraun/gocheck
-        export PATH=$GOPATH/bin:$PATH
-        make test
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: '1.25'
+
+      # -lm is needed and the package does not ask for it. The amalgamation
+      # compiles FTS5 unconditionally and fts5Bm25GetData calls log(), but every
+      # `#cgo LDFLAGS: -lm` in this repo sits in a sqlite3_opt_*.go behind a
+      # build tag nobody sets by default. macOS hides this because libm lives in
+      # libSystem; on Linux the link fails with an undefined reference to `log`.
+      #
+      # It does not bite the sinesync CLI, which links sqlite-vec alongside and
+      # picks up libm from there — so the gap only shows when this package is
+      # built on its own, which until now nothing did.
+      - name: Vet
+        env:
+          CGO_LDFLAGS: -lm
+        run: go vet ./...
+
+      # go test rather than `make test`, which shells out to a third-party
+      # gocheck installed with a `go get` that no longer works. The suite it
+      # wraps is this one.
+      - name: Test
+        env:
+          CGO_LDFLAGS: -lm
+        run: go test ./...
