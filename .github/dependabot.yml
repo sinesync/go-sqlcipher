@@ -1,0 +1,24 @@
+version: 2
+
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      go-dependencies:
+        patterns:
+          - "*"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns:
+          - "*"
+    # ci.yml still uses actions/checkout@v2 and actions/setup-go@v2 inherited
+    # from upstream. These updates are how that gets noticed and fixed rather
+    # than staying at whatever the fork was taken at.
