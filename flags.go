@@ -25,6 +25,18 @@ package sqlite3
 // enable FTS5 full-text search
 #cgo CFLAGS: -DSQLITE_ENABLE_FTS5
 
+// FTS5 needs libm. Upstream enables FTS5 only under the sqlite_fts5 build tag,
+// and sqlite3_opt_fts5.go pairs the CFLAG above with `#cgo LDFLAGS: -lm`. This
+// fork turns FTS5 on unconditionally here and did not bring the link flag
+// across, so fts5Bm25GetData's call to log() had nothing to resolve against:
+//
+//	sqlite3.c: undefined reference to `log'
+//
+// Linux only. macOS has the maths functions in libSystem, and the Windows build
+// already links -lmingwex in sqlite3_windows.go, which provides them — so those
+// two hid the omission, and only a plain `go build` on Linux ever showed it.
+#cgo linux LDFLAGS: -lm
+
 // disable assertions
 #cgo CFLAGS: -DNDEBUG
 
