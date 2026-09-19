@@ -40,6 +40,11 @@ jobs:
   floor:
     name: Build at the declared floor
     runs-on: ubuntu-latest
+    env:
+      # Never let a newer toolchain be downloaded to satisfy a dependency's
+      # `go` directive. If the floor cannot build this module on its own, the
+      # job should fail rather than quietly build with something newer.
+      GOTOOLCHAIN: local
     steps:
       - name: Checkout
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -49,14 +54,39 @@ jobs:
       # the pinned one is ever tested — which is how a module comes to declare a
       # floor nothing has compiled against in years. Taking it from the file
       # makes them the same claim by construction.
-      - name: Read the floor from go.mod
-        id: floor
-        run: echo "go=$(awk '/^go /{print $2; exit}' go.mod)" >> "$GITHUB_OUTPUT"
-
-      - name: Set up Go ${{ steps.floor.outputs.go }}
+      - name: Set up Go from go.mod
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
-          go-version: '${{ steps.floor.outputs.go }}'
+          go-version-file: go.mod
+
+      # setup-go resolves the directive to a release, so check that what it
+      # installed is actually the floor. A bare `go 1.12` accepts any 1.12.x;
+      # a directive with a patch version must match exactly.
+      - name: Assert the installed Go is the floor
+        run: |
+          declared=$(awk '/^go /{print $2; exit}' go.mod)
+          actual=$(go version | awk '{print $3}' | sed 's/^go//')
+          echo "expected: ${declared:-<empty>}"
+          echo "actual:   ${actual:-<empty>}"
+          if [ -z "$declared" ] || [ -z "$actual" ]; then
+            echo "could not determine the declared or the installed Go version" >&2
+            exit 1
+          fi
+          ok=no
+          case "$declared" in
+            *.*.*)
+              # Exact patch declared: require exactly that release.
+              [ "$actual" = "$declared" ] && ok=yes ;;
+            *)
+              # Major.minor declared: accept it bare or with any patch.
+              case "$actual" in
+                "$declared" | "$declared".*) ok=yes ;;
+              esac ;;
+          esac
+          if [ "$ok" != yes ]; then
+            echo "installed Go $actual is not the declared floor $declared" >&2
+            exit 1
+          fi
 
       # Build only. The floor says what can compile this module; the test suite
       # pulls testify, whose own floor is its business.
