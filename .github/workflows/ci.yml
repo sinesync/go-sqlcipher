@@ -36,3 +36,31 @@ jobs:
       # — and this job failing is how anyone would find out if that regressed.
       - name: Test
         run: go test ./...
+
+  floor:
+    name: Build at the declared floor
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      # Read from go.mod rather than pinning a version here. The `go` directive
+      # and the version CI exercises are otherwise two separate claims, and only
+      # the pinned one is ever tested — which is how a module comes to declare a
+      # floor nothing has compiled against in years. Taking it from the file
+      # makes them the same claim by construction.
+      - name: Read the floor from go.mod
+        id: floor
+        run: echo "go=$(awk '/^go /{print $2; exit}' go.mod)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Go ${{ steps.floor.outputs.go }}
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: '${{ steps.floor.outputs.go }}'
+
+      # Build only. The floor says what can compile this module; the test suite
+      # pulls testify, whose own floor is its business.
+      - name: Build
+        env:
+          GO111MODULE: on
+        run: go build ./...
