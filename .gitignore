@@ -1,0 +1,8 @@
+# Agent tooling state. These are working directories, not source: .conclave/
+# holds session event logs containing recorded prompt and output text, and
+# .claude/ and .codex/ hold local settings for whoever is driving. This repo is
+# public, so anything `git add -A` sweeps in is world-readable the moment it is
+# pushed, with no undo. Ignored so that mistake cannot be made.
+.claude/
+.codex/
+.conclave/
